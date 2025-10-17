@@ -2,9 +2,7 @@ import 'package:absensi_admin/models/room_model.dart';
 import 'package:absensi_admin/pages/room_editor_page.dart';
 import 'package:absensi_admin/services/room_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:latlong2/latlong.dart';
 
 class RoomsPage extends StatefulWidget {
   const RoomsPage({super.key});
@@ -29,6 +27,39 @@ class _RoomsPageState extends State<RoomsPage> {
     });
   }
 
+  Future<void> _confirmDelete(RoomModel room) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: Text('Are you sure you want to delete ${room.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _roomService.deleteRoom(room.id);
+        _loadRooms();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting room: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,90 +78,53 @@ class _RoomsPageState extends State<RoomsPage> {
           }
 
           final rooms = snapshot.data!;
-          return Column(
-            children: [
-              Expanded(
-                flex: 1,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(
-                        rooms.first.latitude, rooms.first.longitude),
-                    initialZoom: 13.0,
-                  ),
+          return ListView.builder(
+            itemCount: rooms.length,
+            itemBuilder: (context, index) {
+              final room = rooms[index];
+              return ListTile(
+                leading: const FaIcon(FontAwesomeIcons.doorOpen),
+                title: Text(room.name),
+                subtitle: Text(room.description ?? 'No description'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TileLayer(
-                      urlTemplate:
-                          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                      subdomains: const ['a', 'b', 'c'],
-                    ),
-                    MarkerLayer(
-                      markers: rooms.map((room) {
-                        return Marker(
-                          width: 80.0,
-                          height: 80.0,
-                          point: LatLng(room.latitude, room.longitude),
-                          child: const FaIcon(
-                            FontAwesomeIcons.locationDot,
-                            color: Colors.red,
-                            size: 40,
+                    IconButton(
+                      icon: const FaIcon(FontAwesomeIcons.penToSquare),
+                      onPressed: () async {
+                        final result = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => RoomEditorPage(room: room),
                           ),
                         );
-                      }).toList(),
+                        if (result == true) {
+                          _loadRooms();
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const FaIcon(FontAwesomeIcons.trash),
+                      onPressed: () => _confirmDelete(room),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                flex: 1,
-                child: ListView.builder(
-                  itemCount: rooms.length,
-                  itemBuilder: (context, index) {
-                    final room = rooms[index];
-                    return ListTile(
-                      title: Text(room.name),
-                      subtitle: Text(room.description ?? ''),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const FaIcon(FontAwesomeIcons.penToSquare),
-                            onPressed: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      RoomEditorPage(room: room),
-                                ),
-                              );
-                              _loadRooms();
-                            },
-                          ),
-                          IconButton(
-                            icon: const FaIcon(FontAwesomeIcons.trash),
-                            onPressed: () async {
-                              await _roomService.deleteRoom(room.id);
-                              _loadRooms();
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          await Navigator.push(
+          final result = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (context) => const RoomEditorPage(),
             ),
           );
-          _loadRooms();
+          if (result == true) {
+            _loadRooms();
+          }
         },
         child: const FaIcon(FontAwesomeIcons.plus),
       ),

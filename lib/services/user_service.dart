@@ -6,45 +6,50 @@ class UserService {
 
   Future<List<UserModel>> getUsers() async {
     final response = await _supabase.from('users').select();
-    final List<dynamic> data = response as List<dynamic>;
-    return data.map((e) => UserModel.fromJson(e)).toList();
+    return (response as List)
+        .map((item) => UserModel.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<void> addUser(UserModel user, String password) async {
+  Future<void> createUser({
+    required String email,
+    required String password,
+    required String name,
+    required String role,
+  }) async {
     final AuthResponse res = await _supabase.auth.signUp(
-      email: user.email,
+      email: email,
       password: password,
+      data: {'name': name, 'role': role},
     );
-    if (res.user != null) {
-      await _supabase.from('users').update({
-        'name': user.name,
-        'role': user.role,
-        'username': user.username,
-      }).eq('id', res.user!.id);
+    if (res.user == null) {
+      throw Exception('Failed to create user');
     }
   }
 
-  Future<void> updateUser(UserModel user) async {
-    await _supabase.from('users').update({
-      'name': user.name,
-      'email': user.email,
-      'role': user.role,
-      'username': user.username,
-    }).eq('id', user.id);
+  Future<void> updateUser(
+    String id, {
+    String? name,
+    String? email,
+    String? role,
+    String? password,
+  }) async {
+    final updates = <String, dynamic>{
+      if (name != null) 'name': name,
+      if (email != null) 'email': email,
+      if (role != null) 'role': role,
+    };
+
+    if (updates.isNotEmpty) {
+      await _supabase.from('users').update(updates).eq('id', id);
+    }
+
+    if (password != null && password.isNotEmpty) {
+      await _supabase.auth.admin.updateUserById(id, attributes: AdminUserAttributes(password: password));
+    }
   }
 
   Future<void> deleteUser(String id) async {
-    // WARNING: This is an insecure way to delete users and is only used
-    // as a workaround for the limitations of the current development environment.
-    // In a production application, this logic should be moved to a secure
-    // server-side environment (e.g., a Supabase Edge Function) to protect
-    // the SERVICE_ROLE key.
-    const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2dHR1bWh2emRmbGlpbmRhdWJpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDI4OTc5MCwiZXhwIjoyMDc1ODY1NzkwfQ.wTSyxcQYpkkeWFZjjAkbfGIACdQOLHCkMlRf-O-3Y8s';
-    final adminAuthClient = SupabaseClient(
-      'https://vvttumhvzdfliindaubi.supabase.co',
-      serviceRoleKey,
-    );
-
-    await adminAuthClient.auth.admin.deleteUser(id);
+    await _supabase.auth.admin.deleteUser(id);
   }
 }

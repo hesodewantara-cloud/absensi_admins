@@ -27,6 +27,39 @@ class _UsersPageState extends State<UsersPage> {
     });
   }
 
+  Future<void> _confirmDelete(UserModel user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: Text('Are you sure you want to delete ${user.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _userService.deleteUser(user.id);
+        _loadUsers();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting user: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,11 +103,7 @@ class _UsersPageState extends State<UsersPage> {
                     ),
                     IconButton(
                       icon: const FaIcon(FontAwesomeIcons.trash),
-                      onPressed: () async {
-                        await _userService.deleteUser(user.id);
-                        if (!mounted) return; // ✅ cek mounted
-                        _loadUsers();
-                      },
+                      onPressed: () => _confirmDelete(user),
                     ),
                   ],
                 ),

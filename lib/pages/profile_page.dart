@@ -31,11 +31,7 @@ class ProfilePage extends StatelessWidget {
 
                 if (!context.mounted) return; // ✅ cek context sebelum Navigator
 
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
               },
               child: const Text('Logout'),
             ),

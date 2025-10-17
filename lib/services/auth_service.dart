@@ -7,25 +7,10 @@ class AuthService extends ChangeNotifier {
   bool _isAdmin = false;
   bool get isAdmin => _isAdmin;
 
-  Future<bool> signIn(String email, String password,
-      {String? username}) async {
+  Future<bool> signIn(String email, String password) async {
     try {
-      String? emailToSignIn = email;
-      if (username != null && username.isNotEmpty) {
-        final response = await _supabase
-            .from('users')
-            .select('email')
-            .eq('username', username)
-            .single();
-        emailToSignIn = response['email'];
-      }
-
-      if (emailToSignIn == null) {
-        return false;
-      }
-
       final AuthResponse res = await _supabase.auth.signInWithPassword(
-        email: emailToSignIn,
+        email: email,
         password: password,
       );
 

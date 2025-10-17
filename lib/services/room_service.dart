@@ -6,28 +6,42 @@ class RoomService {
 
   Future<List<RoomModel>> getRooms() async {
     final response = await _supabase.from('rooms').select();
-    final List<dynamic> data = response as List<dynamic>;
-    return data.map((e) => RoomModel.fromJson(e)).toList();
+    return (response as List)
+        .map((item) => RoomModel.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<void> addRoom(RoomModel room) async {
+  Future<void> createRoom({
+    required String name,
+    String? description,
+    required double latitude,
+    required double longitude,
+    required int radius,
+  }) async {
     await _supabase.from('rooms').insert({
-      'name': room.name,
-      'description': room.description,
-      'latitude': room.latitude,
-      'longitude': room.longitude,
-      'radius_meters': room.radiusMeters,
+      'name': name,
+      'description': description,
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_meters': radius,
     });
   }
 
-  Future<void> updateRoom(RoomModel room) async {
+  Future<void> updateRoom(
+    int id, {
+    required String name,
+    String? description,
+    required double latitude,
+    required double longitude,
+    required int radius,
+  }) async {
     await _supabase.from('rooms').update({
-      'name': room.name,
-      'description': room.description,
-      'latitude': room.latitude,
-      'longitude': room.longitude,
-      'radius_meters': room.radiusMeters,
-    }).eq('id', room.id);
+      'name': name,
+      'description': description,
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_meters': radius,
+    }).eq('id', id);
   }
 
   Future<void> deleteRoom(int id) async {

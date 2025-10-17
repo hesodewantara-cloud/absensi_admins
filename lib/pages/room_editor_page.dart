@@ -1,7 +1,5 @@
 import 'package:absensi_admin/models/room_model.dart';
 import 'package:absensi_admin/services/room_service.dart';
-import 'package:absensi_admin/widgets/custom_button.dart';
-import 'package:absensi_admin/widgets/custom_input.dart';
 import 'package:flutter/material.dart';
 
 class RoomEditorPage extends StatefulWidget {
@@ -15,60 +13,55 @@ class RoomEditorPage extends StatefulWidget {
 
 class _RoomEditorPageState extends State<RoomEditorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _latitudeController = TextEditingController();
-  final _longitudeController = TextEditingController();
-  final _radiusController = TextEditingController();
-  bool _isLoading = false;
+  final _roomService = RoomService();
+  late TextEditingController _nameController;
+  late TextEditingController _descriptionController;
+  late TextEditingController _latController;
+  late TextEditingController _lngController;
+  late TextEditingController _radiusController;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.room != null) {
-      _nameController.text = widget.room!.name;
-      _descriptionController.text = widget.room!.description ?? '';
-      _latitudeController.text = widget.room!.latitude.toString();
-      _longitudeController.text = widget.room!.longitude.toString();
-      _radiusController.text = widget.room!.radiusMeters.toString();
-    }
+    _isEditing = widget.room != null;
+    _nameController = TextEditingController(text: widget.room?.name ?? '');
+    _descriptionController = TextEditingController(text: widget.room?.description ?? '');
+    _latController = TextEditingController(text: widget.room?.latitude.toString() ?? '');
+    _lngController = TextEditingController(text: widget.room?.longitude.toString() ?? '');
+    _radiusController = TextEditingController(text: widget.room?.radius.toString() ?? '10');
   }
 
   Future<void> _saveRoom() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final roomService = RoomService();
-      final room = RoomModel(
-        id: widget.room?.id ?? 0,
-        name: _nameController.text,
-        description: _descriptionController.text,
-        latitude: double.parse(_latitudeController.text),
-        longitude: double.parse(_longitudeController.text),
-        radiusMeters: int.parse(_radiusController.text),
-      );
-
       try {
-        if (widget.room == null) {
-          await roomService.addRoom(room);
+        if (_isEditing) {
+          await _roomService.updateRoom(
+            widget.room!.id,
+            name: _nameController.text,
+            description: _descriptionController.text,
+            latitude: double.parse(_latController.text),
+            longitude: double.parse(_lngController.text),
+            radius: int.parse(_radiusController.text),
+          );
         } else {
-          await roomService.updateRoom(room);
+          await _roomService.createRoom(
+            name: _nameController.text,
+            description: _descriptionController.text,
+            latitude: double.parse(_latController.text),
+            longitude: double.parse(_lngController.text),
+            radius: int.parse(_radiusController.text),
+          );
         }
-        if (!mounted) return;
-  Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error saving room: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -77,80 +70,46 @@ class _RoomEditorPageState extends State<RoomEditorPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.room == null ? 'Add Room' : 'Edit Room'),
+        title: Text(_isEditing ? 'Edit Room' : 'Add Room'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: ListView(
             children: [
-              CustomInput(
+              TextFormField(
                 controller: _nameController,
-                hintText: 'Name',
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
               ),
-              const SizedBox(height: 16),
-              CustomInput(
+              TextFormField(
                 controller: _descriptionController,
-                hintText: 'Description',
+                decoration: const InputDecoration(labelText: 'Description'),
               ),
-              const SizedBox(height: 16),
-              CustomInput(
-                controller: _latitudeController,
-                hintText: 'Latitude',
+              TextFormField(
+                controller: _latController,
+                decoration: const InputDecoration(labelText: 'Latitude'),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a latitude';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
+                validator: (value) => value!.isEmpty ? 'Please enter a latitude' : null,
               ),
-              const SizedBox(height: 16),
-              CustomInput(
-                controller: _longitudeController,
-                hintText: 'Longitude',
+              TextFormField(
+                controller: _lngController,
+                decoration: const InputDecoration(labelText: 'Longitude'),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a longitude';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
+                validator: (value) => value!.isEmpty ? 'Please enter a longitude' : null,
               ),
-              const SizedBox(height: 16),
-              CustomInput(
+              TextFormField(
                 controller: _radiusController,
-                hintText: 'Radius (meters)',
+                decoration: const InputDecoration(labelText: 'Radius (meters)'),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a radius';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
+                validator: (value) => value!.isEmpty ? 'Please enter a radius' : null,
               ),
-              const SizedBox(height: 24),
-              CustomButton(
+              const SizedBox(height: 20),
+              ElevatedButton(
                 onPressed: _saveRoom,
-                text: 'Save',
-                isLoading: _isLoading,
-              ),
+                child: const Text('Save Room'),
+              )
             ],
           ),
         ),

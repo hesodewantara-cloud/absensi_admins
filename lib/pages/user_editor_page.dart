@@ -1,7 +1,5 @@
 import 'package:absensi_admin/models/user_model.dart';
 import 'package:absensi_admin/services/user_service.dart';
-import 'package:absensi_admin/widgets/custom_button.dart';
-import 'package:absensi_admin/widgets/custom_input.dart';
 import 'package:flutter/material.dart';
 
 class UserEditorPage extends StatefulWidget {
@@ -15,58 +13,55 @@ class UserEditorPage extends StatefulWidget {
 
 class _UserEditorPageState extends State<UserEditorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  String? _selectedRole;
-  bool _isLoading = false;
+  final _userService = UserService();
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  late TextEditingController _passwordController;
+  String _selectedRole = 'teacher';
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.user != null) {
-      _nameController.text = widget.user!.name ?? '';
-      _usernameController.text = widget.user!.username ?? '';
-      _emailController.text = widget.user!.email;
-      _selectedRole = widget.user!.role;
-    }
+    _isEditing = widget.user != null;
+    _nameController = TextEditingController(text: widget.user?.name ?? '');
+    _emailController = TextEditingController(text: widget.user?.email ?? '');
+    _passwordController = TextEditingController();
+    _selectedRole = widget.user?.role ?? 'teacher';
   }
 
   Future<void> _saveUser() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final userService = UserService();
-      final user = UserModel(
-        id: widget.user?.id ?? '',
-        username: _usernameController.text,
-        name: _nameController.text,
-        email: _emailController.text,
-        role: _selectedRole,
-      );
+      final name = _nameController.text;
+      final email = _emailController.text;
+      final password = _passwordController.text;
 
       try {
-        if (widget.user == null) {
-          await userService.addUser(user, _passwordController.text);
+        if (_isEditing) {
+          await _userService.updateUser(
+            widget.user!.id,
+            name: name,
+            email: email,
+            role: _selectedRole,
+            password: password.isNotEmpty ? password : null,
+          );
         } else {
-          await userService.updateUser(user);
+          await _userService.createUser(
+            email: email,
+            password: password,
+            name: name,
+            role: _selectedRole,
+          );
         }
-       if (!mounted) return; // ✅ cek mounted sebelum pakai context
-      Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error saving user: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -75,90 +70,58 @@ class _UserEditorPageState extends State<UserEditorPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.user == null ? 'Add User' : 'Edit User'),
+        title: Text(_isEditing ? 'Edit User' : 'Add User'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: ListView(
             children: [
-              CustomInput(
-                controller: _usernameController,
-                hintText: 'Username',
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a username';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              CustomInput(
+              TextFormField(
                 controller: _nameController,
-                hintText: 'Name',
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
               ),
-              const SizedBox(height: 16),
-              CustomInput(
+              TextFormField(
                 controller: _emailController,
-                hintText: 'Email',
+                decoration: const InputDecoration(labelText: 'Email'),
+                validator: (value) => value!.isEmpty || !value.contains('@') ? 'Please enter a valid email' : null,
+              ),
+              TextFormField(
+                controller: _passwordController,
+                decoration: InputDecoration(labelText: 'Password (${_isEditing ? "leave blank to keep current" : ""})'),
+                obscureText: true,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter an email';
+                  if (!_isEditing && (value == null || value.isEmpty)) {
+                    return 'Please enter a password';
                   }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                  if (value != null && value.isNotEmpty && value.length < 6) {
+                    return 'Password must be at least 6 characters';
                   }
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              if (widget.user == null)
-                CustomInput(
-                  controller: _passwordController,
-                  hintText: 'Password',
-                  obscureText: true,
-                  validator: (value) {
-                    if (widget.user == null &&
-                        (value == null || value.isEmpty)) {
-                      return 'Please enter a password';
-                    }
-                    if (widget.user == null && value!.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue: _selectedRole,
-                hint: const Text('Role'),
-                items: ['teacher', 'admin'].map((String value) {
+                value: _selectedRole,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: ['teacher', 'admin'].map((String role) {
                   return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
+                    value: role,
+                    child: Text(role),
                   );
                 }).toList(),
                 onChanged: (newValue) {
                   setState(() {
-                    _selectedRole = newValue;
+                    _selectedRole = newValue!;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Please select a role' : null,
               ),
-              const SizedBox(height: 24),
-              CustomButton(
+              const SizedBox(height: 20),
+              ElevatedButton(
                 onPressed: _saveUser,
-                text: 'Save',
-                isLoading: _isLoading,
-              ),
+                child: const Text('Save User'),
+              )
             ],
           ),
         ),

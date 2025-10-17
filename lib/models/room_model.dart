@@ -4,9 +4,7 @@ class RoomModel {
   final String? description;
   final double latitude;
   final double longitude;
-  final int? radiusMeters;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final int radius;
 
   RoomModel({
     required this.id,
@@ -14,9 +12,7 @@ class RoomModel {
     this.description,
     required this.latitude,
     required this.longitude,
-    this.radiusMeters,
-    this.createdAt,
-    this.updatedAt,
+    required this.radius,
   });
 
   factory RoomModel.fromJson(Map<String, dynamic> json) {
@@ -24,26 +20,9 @@ class RoomModel {
       id: json['id'],
       name: json['name'],
       description: json['description'],
-      latitude: json['latitude'],
-      longitude: json['longitude'],
-      radiusMeters: json['radius_meters'],
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : null,
+      latitude: json['latitude'].toDouble(),
+      longitude: json['longitude'].toDouble(),
+      radius: json['radius_meters'],
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'latitude': latitude,
-      'longitude': longitude,
-      'radius_meters': radiusMeters,
-    };
   }
 }

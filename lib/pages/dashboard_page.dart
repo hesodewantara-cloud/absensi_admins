@@ -1,8 +1,7 @@
-import 'package:absensi_admin/services/report_service.dart';
-import 'package:absensi_admin/services/room_service.dart';
-import 'package:absensi_admin/services/user_service.dart';
+import 'package:absensi_admin/services/dashboard_service.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -12,13 +11,10 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final UserService _userService = UserService();
-  final RoomService _roomService = RoomService();
-  final ReportService _reportService = ReportService();
-
-  late Future<int> _totalUsers;
-  late Future<int> _totalRooms;
-  late Future<int> _todaysAttendance;
+  final DashboardService _dashboardService = DashboardService();
+  late Future<Map<String, int>> _statsFuture;
+  late Future<Map<String, double>> _attendanceChartFuture;
+  late Future<Map<String, double>> _sickLeaveChartFuture;
 
   @override
   void initState() {
@@ -28,9 +24,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   void _loadData() {
     setState(() {
-      _totalUsers = _userService.getUsers().then((value) => value.length);
-      _totalRooms = _roomService.getRooms().then((value) => value.length);
-      _todaysAttendance = _reportService.getTodaysAttendanceCount();
+      _statsFuture = _dashboardService.getDashboardStats();
+      _attendanceChartFuture = _dashboardService.getAttendanceChartData();
+      _sickLeaveChartFuture = _dashboardService.getSickLeaveChartData();
     });
   }
 
@@ -39,144 +35,205 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          _loadData();
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Overview',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard('Total Users', _totalUsers),
-                  _buildStatCard('Total Rooms', _totalRooms),
-                  _buildStatCard('Today\'s Attendance', _todaysAttendance),
-                ],
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'Weekly Attendance',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 300,
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: 20,
-                    barGroups: [
-                      BarChartGroupData(x: 0, barRods: [
-                        BarChartRodData(toY: 8, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 1, barRods: [
-                        BarChartRodData(toY: 10, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 2, barRods: [
-                        BarChartRodData(toY: 14, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 3, barRods: [
-                        BarChartRodData(toY: 15, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 4, barRods: [
-                        BarChartRodData(toY: 13, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 5, barRods: [
-                        BarChartRodData(toY: 10, color: Colors.indigo)
-                      ]),
-                      BarChartGroupData(x: 6, barRods: [
-                        BarChartRodData(toY: 17, color: Colors.indigo)
-                      ]),
-                    ],
-                    titlesData: FlTitlesData(
-                      leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            const style = TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            );
-                            String text;
-                            switch (value.toInt()) {
-                              case 0:
-                                text = 'M';
-                                break;
-                              case 1:
-                                text = 'T';
-                                break;
-                              case 2:
-                                text = 'W';
-                                break;
-                              case 3:
-                                text = 'T';
-                                break;
-                              case 4:
-                                text = 'F';
-                                break;
-                              case 5:
-                                text = 'S';
-                                break;
-                              case 6:
-                                text = 'S';
-                                break;
-                              default:
-                                text = '';
-                                break;
-                            }
-                            return Text(text, style: style);
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
           ),
+        ],
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: Future.wait([_statsFuture, _attendanceChartFuture, _sickLeaveChartFuture]),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: Text('No data available.'));
+          }
+
+          final stats = snapshot.data![0] as Map<String, int>;
+          final attendanceData = snapshot.data![1] as Map<String, double>;
+          final sickLeaveData = snapshot.data![2] as Map<String, double>;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Overview',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                _buildStatsGrid(stats),
+                const SizedBox(height: 32),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildPieChartCard('Attendance Status', attendanceData),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildBarChartCard('Sick Leave Status', sickLeaveData),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatsGrid(Map<String, int> stats) {
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _buildStatCard(
+          icon: FontAwesomeIcons.users,
+          label: 'Total Users',
+          value: stats['totalUsers'].toString(),
+          color: Colors.blue,
+        ),
+        _buildStatCard(
+          icon: FontAwesomeIcons.doorOpen,
+          label: 'Total Rooms',
+          value: stats['totalRooms'].toString(),
+          color: Colors.green,
+        ),
+        _buildStatCard(
+          icon: FontAwesomeIcons.solidCalendarCheck,
+          label: 'Today\'s Attendance',
+          value: stats['todaysAttendance'].toString(),
+          color: Colors.orange,
+        ),
+        _buildStatCard(
+          icon: FontAwesomeIcons.solidFileMedical,
+          label: 'Pending Leaves',
+          value: stats['pendingLeaves'].toString(),
+          color: Colors.red,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard({required IconData icon, required String label, required String value, required Color color}) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FaIcon(icon, size: 32, color: color),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String title, Future<int> future) {
+  Widget _buildPieChartCard(String title, Map<String, double> data) {
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sections: data.entries.map((entry) {
+                    return PieChartSectionData(
+                      value: entry.value,
+                      title: '${entry.key}\n${entry.value.toInt()}',
+                      color: Colors.primaries[data.keys.toList().indexOf(entry.key) % Colors.primaries.length],
+                      radius: 80,
+                    );
+                  }).toList(),
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
-            FutureBuilder<int>(
-              future: future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                } else if (snapshot.hasError) {
-                  return const Text('Error', style: TextStyle(fontSize: 24));
-                } else {
-                  return Text(
-                    snapshot.data.toString(),
-                    style: const TextStyle(fontSize: 24),
-                  );
-                }
-              },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChartCard(String title, Map<String, double> data) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  barGroups: data.entries.map((entry) {
+                    return BarChartGroupData(
+                      x: data.keys.toList().indexOf(entry.key),
+                      barRods: [
+                        BarChartRodData(
+                          toY: entry.value,
+                          color: Colors.primaries[data.keys.toList().indexOf(entry.key) % Colors.primaries.length],
+                          width: 16,
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                  titlesData: FlTitlesData(
+                     leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text(data.keys.toList()[value.toInt()]);
+                        },
+                        reservedSize: 38,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

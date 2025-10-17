@@ -1,5 +1,4 @@
 // Mengimpor paket-paket yang diperlukan untuk halaman ini.
-import 'package:absensi_admin/pages/main_page.dart'; // Halaman tujuan setelah login berhasil.
 import 'package:flutter/material.dart'; // Paket dasar untuk membangun UI Flutter.
 import 'package:lottie/lottie.dart'; // Untuk menampilkan animasi Lottie.
 import 'package:provider/provider.dart'; // Untuk state management, khususnya mengambil AuthService.
@@ -22,11 +21,23 @@ class _LoginPageState extends State<LoginPage> {
 
   // Controller untuk mengambil teks dari setiap TextField.
   final _emailController = TextEditingController();
-  //final _usernameController = TextEditingController(); // <-- Poin Potensi Masalah
   final _passwordController = TextEditingController();
 
   // Variabel state untuk mengontrol tampilan loading pada tombol.
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(args), backgroundColor: Colors.red),
+        );
+      }
+    });
+  }
 
   // Fungsi yang dieksekusi ketika tombol login ditekan.
   Future<void> _login() async {
@@ -48,7 +59,6 @@ class _LoginPageState extends State<LoginPage> {
     final success = await authService.signIn(
       _emailController.text,
       _passwordController.text,
-      //username: _usernameController.text,
     );
 
     // 5. Cek 'mounted': Praktik terbaik untuk memastikan widget masih ada di tree
@@ -58,10 +68,7 @@ class _LoginPageState extends State<LoginPage> {
     // 6. Proses Hasil Login:
     if (success) {
       // Jika berhasil, navigasi ke MainPage dan hapus halaman login dari tumpukan navigasi.
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainPage()),
-      );
+      Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
       // Jika gagal, tampilkan pesan error menggunakan SnackBar.
       ScaffoldMessenger.of(context).showSnackBar(
@@ -101,20 +108,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Input field untuk Username.
-                 /*
-                CustomInput(
-                  controller: _usernameController,
-                  hintText: 'Username',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your username';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                */
                 // Input field untuk Email dengan validasi format.
                 CustomInput(
                   controller: _emailController,
